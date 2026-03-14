@@ -11,10 +11,12 @@ import AppsScreen from '../screens/AppsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import RequestScreen from '../screens/RequestScreen';
 import BlockedScreen from '../screens/BlockedScreen';
+import NoDeviceScreen from '../screens/NoDeviceScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
+  NoDevice: undefined;
   Home: undefined;
   Apps: undefined;
   Profile: undefined;
@@ -25,7 +27,7 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, hasDevice } = useAuth();
 
   if (isLoading) {
     return null; // or a loading screen
@@ -55,6 +57,14 @@ export const AppNavigator = () => {
               name="Login" 
               component={LoginScreen}
               options={{ headerShown: false }}
+            />
+          </>
+        ) : !hasDevice ? (
+          <>
+            <Stack.Screen 
+              name="NoDevice" 
+              component={NoDeviceScreen}
+              options={{ title: 'Chưa có thiết bị', headerLeft: () => null }}
             />
           </>
         ) : (

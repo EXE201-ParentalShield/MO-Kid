@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -24,7 +24,11 @@ const SplashScreen = ({ navigation }: SplashScreenProps) => {
     >
       <View style={styles.content}>
         <View style={styles.logoGlow} />
-        <Text style={styles.logoIcon}>🛡️</Text>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Shield Family</Text>
         <Text style={styles.subtitle}>Dành cho Trẻ em</Text>
       </View>
@@ -44,6 +48,11 @@ const styles = StyleSheet.create({
     marginBottom: 48,
     position: 'relative',
   },
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 16,
+  },
   logoGlow: {
     position: 'absolute',
     width: 140,
@@ -52,13 +61,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.glow,
     opacity: 0.5,
     top: 0,
-  },
-  logoIcon: {
-    fontSize: 80,
-    marginBottom: 16,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 8,
   },
   title: {
     fontSize: 36,

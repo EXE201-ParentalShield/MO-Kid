@@ -39,4 +39,8 @@ export const API_ENDPOINTS = {
 export const STORAGE_KEYS = {
   TOKEN: '@shield_kid_token',
   USER_DATA: '@shield_kid_user',
+  DEVICE_ID: '@shield_kid_device_id',
+  DEVICE_UNIQUE_ID: '@shield_kid_device_unique_id',
+  CURRENT_SESSION_ID: '@shield_kid_current_session_id',
+  COMPLETED_REQUEST_IDS: '@shield_kid_completed_request_ids',
 };

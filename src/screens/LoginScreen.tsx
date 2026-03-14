@@ -8,48 +8,65 @@ import {
   Platform,
   Alert,
   Image,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../utils/constants';
 
 const LoginScreen = () => {
-  const [pin, setPin] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({ username: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
 
+  const validateField = (field: 'username' | 'password', value: string) => {
+    let error = '';
+    
+    if (field === 'username') {
+      if (!value.trim()) {
+        error = 'Tên đăng nhập không được để trống';
+      } else if (value.length < 3) {
+        error = 'Tên đăng nhập phải có ít nhất 3 ký tự';
+      } else if (value.length > 50) {
+        error = 'Tên đăng nhập không được quá 50 ký tự';
+      }
+    } else if (field === 'password') {
+      if (!value) {
+        error = 'Mật khẩu không được để trống';
+      } else if (value.length < 6) {
+        error = 'Mật khẩu phải có ít nhất 6 ký tự';
+      }
+    }
+    
+    setErrors(prev => ({ ...prev, [field]: error }));
+    return error === '';
+  };
+
+  const validateForm = () => {
+    const usernameValid = validateField('username', username);
+    const passwordValid = validateField('password', password);
+    return usernameValid && passwordValid;
+  };
+
   const handleLogin = async () => {
-    if (pin.length !== 4) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đúng 4 chữ số PIN');
+    if (!validateForm()) {
       return;
     }
 
     setIsLoading(true);
     try {
-      await login(pin);
-    } catch (error) {
-      Alert.alert('Lỗi', 'PIN không đúng. Vui lòng thử lại.');
-      setPin('');
+      await login(username, password);
+      Alert.alert('Thành công', 'Đăng nhập thành công!');
+    } catch (error: any) {
+      // Show API error message
+      const errorMessage = error.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+      setErrors(prev => ({ ...prev, password: errorMessage }));
+      setPassword('');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handlePinPress = (num: string) => {
-    if (pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 4) {
-        // Auto submit when 4 digits entered
-        setTimeout(() => {
-          handleLogin();
-        }, 200);
-      }
-    }
-  };
-
-  const handleDelete = () => {
-    setPin(pin.slice(0, -1));
   };
 
   return (
@@ -72,47 +89,53 @@ const LoginScreen = () => {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>Kid Shield</Text>
-            <Text style={styles.subtitle}>Nhập mã PIN của bạn</Text>
+            <Text style={styles.title}>Parental Shield</Text>
+            <Text style={styles.subtitle}>Đăng nhập tài khoản trẻ em</Text>
           </View>
 
-          <View style={styles.pinDisplay}>
-            {[0, 1, 2, 3].map((index) => (
-              <View
-                key={index}
-                style={[
-                  styles.pinDot,
-                  pin.length > index && styles.pinDotFilled,
-                ]}
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Tên đăng nhập</Text>
+              <TextInput
+                style={[styles.input, errors.username && styles.inputError]}
+                placeholder="username"
+                value={username}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  if (errors.username) validateField('username', text);
+                }}
+                onBlur={() => validateField('username', username)}
+                autoCapitalize="none"
+                editable={!isLoading}
               />
-            ))}
-          </View>
+              {errors.username ? <Text style={styles.errorText}>{errors.username}</Text> : null}
+            </View>
 
-          <View style={styles.pinPad}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <TouchableOpacity
-                key={num}
-                style={styles.pinButton}
-                onPress={() => handlePinPress(num.toString())}
-                disabled={isLoading}
-              >
-                <Text style={styles.pinButtonText}>{num}</Text>
-              </TouchableOpacity>
-            ))}
-            <View style={styles.pinButton} />
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Mật khẩu</Text>
+              <TextInput
+                style={[styles.input, errors.password && styles.inputError]}
+                placeholder="••••••••"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errors.password) validateField('password', text);
+                }}
+                onBlur={() => validateField('password', password)}
+                secureTextEntry
+                editable={!isLoading}
+              />
+              {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+            </View>
+
             <TouchableOpacity
-              style={styles.pinButton}
-              onPress={() => handlePinPress('0')}
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleLogin}
               disabled={isLoading}
             >
-              <Text style={styles.pinButtonText}>0</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.pinButton}
-              onPress={handleDelete}
-              disabled={isLoading}
-            >
-              <Text style={styles.pinButtonText}>⌫</Text>
+              <Text style={styles.buttonText}>
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -165,66 +188,76 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#1f2937',
     marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   subtitle: {
     fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.95,
+    color: '#374151',
+    opacity: 1,
+  },
+  form: {
+    width: '100%',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
     fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
   },
-  pinDisplay: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginBottom: 48,
-  },
-  pinDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    backgroundColor: 'transparent',
-  },
-  pinDotFilled: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  pinPad: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 16,
-    maxWidth: 300,
-    alignSelf: 'center',
-  },
-  pinButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  input: {
+    height: 56,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    color: COLORS.text,
     shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
-  pinButtonText: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: COLORS.text,
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(255, 240, 240, 0.95)',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
+    marginTop: 6,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  button: {
+    height: 56,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
 

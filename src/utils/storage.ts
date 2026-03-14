@@ -47,9 +47,32 @@ export const storage = {
     }
   },
 
+  // Device Unique ID management
+  saveDeviceUniqueId: async (deviceUniqueId: string) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_UNIQUE_ID, deviceUniqueId);
+    } catch (error) {
+      console.error('Error saving device unique ID:', error);
+    }
+  },
+
+  getDeviceUniqueId: async () => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_UNIQUE_ID);
+    } catch (error) {
+      console.error('Error getting device unique ID:', error);
+      return null;
+    }
+  },
+
   clearAll: async () => {
     try {
-      await AsyncStorage.multiRemove([STORAGE_KEYS.TOKEN, STORAGE_KEYS.USER_DATA]);
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.TOKEN,
+        STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.DEVICE_ID,
+        STORAGE_KEYS.DEVICE_UNIQUE_ID
+      ]);
     } catch (error) {
       console.error('Error clearing storage:', error);
     }
