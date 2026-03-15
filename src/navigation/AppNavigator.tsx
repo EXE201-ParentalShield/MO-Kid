@@ -12,6 +12,9 @@ import ProfileScreen from '../screens/ProfileScreen';
 import RequestScreen from '../screens/RequestScreen';
 import BlockedScreen from '../screens/BlockedScreen';
 import NoDeviceScreen from '../screens/NoDeviceScreen';
+import VideosScreen from '../screens/VideosScreen';
+import WatchVideoScreen from '../screens/WatchVideoScreen';
+
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -22,6 +25,8 @@ export type RootStackParamList = {
   Profile: undefined;
   Request: undefined;
   Blocked: undefined;
+  Videos: undefined;
+  WatchVideo: { video: { videoId: number; title: string; description?: string; url?: string; youtubeId?: string; thumbnailUrl?: string; durationSeconds?: number } };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -83,6 +88,16 @@ export const AppNavigator = () => {
               name="Profile" 
               component={ProfileScreen}
               options={{ title: 'Thông tin cá nhân' }}
+            />
+            <Stack.Screen 
+              name="Videos" 
+              component={VideosScreen}
+              options={{ title: 'Video an toàn' }}
+            />
+            <Stack.Screen 
+              name="WatchVideo" 
+              component={WatchVideoScreen}
+              options={{ title: 'Xem video' }}
             />
             <Stack.Screen 
               name="Request" 
