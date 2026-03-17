@@ -208,7 +208,6 @@ const HomeScreen = ({ navigation }: HomeScreenProps) => {
     { title: 'Ứng dụng được phép', screen: 'Apps', icon: '📱', color: '#3b82f6' },
     { title: 'Thông tin cá nhân', screen: 'Profile', icon: '👤', color: '#8b5cf6' },
     { title: 'Yêu cầu truy cập', screen: 'Request', icon: '✋', color: '#f59e0b' },
-    { title: 'Video an toàn', screen: 'Videos', icon: '🎥', color: '#10b981' },
   ];
 
   return (

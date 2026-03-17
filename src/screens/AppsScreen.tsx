@@ -1,25 +1,49 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 import { COLORS } from '../utils/constants';
 
-const AppsScreen = () => {
+type AppsScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Apps'>;
+};
+
+const AppsScreen = ({ navigation }: AppsScreenProps) => {
   const allowedApps = [
-    { name: 'YouTube Kids', icon: '🎥', description: 'Video an toàn cho trẻ em', time: '2h 15m' },
-    { name: 'Messenger Kids', icon: '💬', description: 'Nhắn tin với bạn bè', time: '45m' },
-    { name: 'Khan Academy Kids', icon: '📚', description: 'Học tập và giải trí', time: '1h 30m' },
-    { name: 'Google Chrome', icon: '🌐', description: 'Trình duyệt được lọc', time: '1h' },
-    { name: 'Duolingo', icon: '🦉', description: 'Học ngôn ngữ', time: '30m' },
-    { name: 'Scratch Jr', icon: '🎨', description: 'Lập trình sáng tạo', time: '45m' },
+    { key: 'youtube', name: 'YouTube', icon: '▶️', description: 'Xem video an toàn cho trẻ em', time: '1h 20m' },
+    { key: 'instagram', name: 'IG', icon: '📸', description: 'Nội dung đã được lọc an toàn', time: '35m' },
+    { key: 'facebook', name: 'FB', icon: '📘', description: 'Chỉ hiển thị nội dung phù hợp', time: '25m' },
+    { key: 'threads', name: 'Threads', icon: '🧵', description: 'Chế độ an toàn cho trẻ em', time: '15m' },
   ];
+
+  const handleAppPress = (appKey: string, appName: string) => {
+    if (appKey === 'youtube') {
+      navigation.navigate('Videos');
+      return;
+    }
+
+    Alert.alert(
+      appName,
+      'Nội dung an toàn cho ứng dụng này sẽ sớm được cập nhật. Hãy chọn YouTube để xem video an toàn ngay bây giờ.'
+    );
+  };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Ứng dụng được phép sử dụng</Text>
         <Text style={styles.subtitle}>{allowedApps.length} ứng dụng an toàn</Text>
+        <View style={styles.hintCard}>
+          <Text style={styles.hintText}>Bấm vào YouTube để mở danh sách video an toàn.</Text>
+        </View>
 
-        {allowedApps.map((app, index) => (
-          <View key={index} style={styles.appCard}>
+        {allowedApps.map((app) => (
+          <TouchableOpacity
+            key={app.key}
+            style={styles.appCard}
+            activeOpacity={0.85}
+            onPress={() => handleAppPress(app.key, app.name)}
+          >
             <View style={styles.appIcon}>
               <Text style={styles.appIconText}>{app.icon}</Text>
             </View>
@@ -28,7 +52,8 @@ const AppsScreen = () => {
               <Text style={styles.appDescription}>{app.description}</Text>
               <Text style={styles.appTime}>Đã dùng: {app.time} hôm nay</Text>
             </View>
-          </View>
+            <Text style={styles.arrow}>›</Text>
+          </TouchableOpacity>
         ))}
       </View>
     </ScrollView>
@@ -53,6 +78,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginBottom: 16,
+  },
+  hintCard: {
+    backgroundColor: '#ecfeff',
+    borderWidth: 1,
+    borderColor: '#a5f3fc',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  hintText: {
+    color: '#0f766e',
+    fontSize: 13,
+    fontWeight: '600',
   },
   appCard: {
     flexDirection: 'row',
@@ -97,6 +135,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.primary,
     fontWeight: '500',
+  },
+  arrow: {
+    fontSize: 28,
+    color: '#9ca3af',
+    marginLeft: 8,
+    lineHeight: 32,
   },
 });
 
