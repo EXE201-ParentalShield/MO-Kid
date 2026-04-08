@@ -1,15 +1,16 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { Alert } from 'react-native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
 
 // Import screens
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
-import HomeScreen from '../screens/HomeScreen';
-import AppsScreen from '../screens/AppsScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import RequestScreen from '../screens/RequestScreen';
+import HomeScreen from '../screens/HomeSoftScreen';
+import AppsScreen from '../screens/AppsSoftScreen';
+import ProfileScreen from '../screens/ProfileSoftScreen';
+import RequestScreen from '../screens/RequestSoftScreen';
 import BlockedScreen from '../screens/BlockedScreen';
 import NoDeviceScreen from '../screens/NoDeviceScreen';
 import VideosScreen from '../screens/VideosScreen';
@@ -30,24 +31,51 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export const AppNavigator = () => {
-  const { isAuthenticated, isLoading, hasDevice } = useAuth();
+  const { isAuthenticated, isLoading, hasDevice, sessionExpiredSignal } = useAuth();
+
+  React.useEffect(() => {
+    if (!sessionExpiredSignal || !isAuthenticated || !hasDevice) return;
+
+    Alert.alert(
+      'Hết thời gian phiên ⏰',
+      'Phiên sử dụng đã hết thời gian. Nhấn OK để quay về trang chủ.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            if (!navigationRef.isReady()) return;
+            navigationRef.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+          },
+        },
+      ],
+      { cancelable: false }
+    );
+  }, [hasDevice, isAuthenticated, sessionExpiredSignal]);
 
   if (isLoading) {
     return null; // or a loading screen
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#10b981',
+            backgroundColor: '#4CAF93',
           },
+          headerShadowVisible: false,
           headerTintColor: '#fff',
           headerTitleStyle: {
-            fontWeight: 'bold',
+            fontWeight: '700',
+          },
+          contentStyle: {
+            backgroundColor: '#F7FCFA',
           },
         }}
       >

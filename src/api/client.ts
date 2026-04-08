@@ -3,7 +3,12 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../utils/constants';
 
-const API_BASE_URL = 'https://be-ikk8.onrender.com/api'; // Deployed API URL
+const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, '');
+
+const configuredBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+const API_BASE_URL = `${normalizeBaseUrl(
+  configuredBaseUrl || 'https://be-ikk8.onrender.com'
+)}/api`;
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
