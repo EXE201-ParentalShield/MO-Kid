@@ -3,8 +3,11 @@
 // and check if device has been locked by parent
 
 import * as Battery from 'expo-battery';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendHeartbeat, HeartbeatResponse } from '../api/device';
 import { logError } from '../api/errorHandler';
+import { endSession } from '../api/device';
+import { STORAGE_KEYS } from '../utils/constants';
 
 export interface HeartbeatStatus {
   isLocked: boolean;
@@ -14,8 +17,74 @@ export interface HeartbeatStatus {
   storageUsage: number;
 }
 
-let heartbeatInterval: NodeJS.Timeout | null = null;
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 let onLockChangeCallback: ((isLocked: boolean, reason?: string) => void) | null = null;
+let onSessionExpiredCallback: (() => void) | null = null;
+let isAutoEndingSession = false;
+
+const clearStoredSession = async () => {
+  await AsyncStorage.multiRemove([
+    STORAGE_KEYS.CURRENT_SESSION_ID,
+    'sessionStartTime',
+    'sessionRequestId',
+    'sessionApprovedMinutes',
+  ]);
+};
+
+const markCompletedRequest = async () => {
+  const requestIdStr = await AsyncStorage.getItem('sessionRequestId');
+  if (!requestIdStr) return;
+
+  const requestId = parseInt(requestIdStr, 10);
+  if (Number.isNaN(requestId)) return;
+
+  const completedIdsStr = await AsyncStorage.getItem(STORAGE_KEYS.COMPLETED_REQUEST_IDS);
+  const completedIds = completedIdsStr ? JSON.parse(completedIdsStr) : [];
+
+  if (!completedIds.includes(requestId)) {
+    completedIds.push(requestId);
+    await AsyncStorage.setItem(STORAGE_KEYS.COMPLETED_REQUEST_IDS, JSON.stringify(completedIds));
+  }
+};
+
+const enforceSessionTimeout = async () => {
+  if (isAutoEndingSession) return;
+
+  const [sessionIdStr, sessionStartTimeStr, approvedMinutesStr] = await AsyncStorage.multiGet([
+    STORAGE_KEYS.CURRENT_SESSION_ID,
+    'sessionStartTime',
+    'sessionApprovedMinutes',
+  ]).then((entries) => entries.map((entry) => entry[1]));
+
+  if (!sessionIdStr || !sessionStartTimeStr || !approvedMinutesStr) return;
+
+  const sessionId = parseInt(sessionIdStr, 10);
+  const approvedMinutes = parseInt(approvedMinutesStr, 10);
+  const sessionStart = new Date(sessionStartTimeStr);
+
+  if (Number.isNaN(sessionId) || Number.isNaN(approvedMinutes) || Number.isNaN(sessionStart.getTime())) {
+    return;
+  }
+
+  if (approvedMinutes <= 0) return;
+
+  const elapsedMinutes = Math.floor((Date.now() - sessionStart.getTime()) / 60000);
+  if (elapsedMinutes < approvedMinutes) return;
+
+  isAutoEndingSession = true;
+  try {
+    await endSession(sessionId, approvedMinutes);
+    await markCompletedRequest();
+    await clearStoredSession();
+    if (onSessionExpiredCallback) {
+      onSessionExpiredCallback();
+    }
+  } catch (error) {
+    logError(error, 'HeartbeatService.enforceSessionTimeout');
+  } finally {
+    isAutoEndingSession = false;
+  }
+};
 
 /**
  * Get current battery level (0-100)
@@ -50,6 +119,8 @@ const getStorageUsage = async (): Promise<number> => {
  */
 const performHeartbeat = async (): Promise<HeartbeatStatus> => {
   try {
+    await enforceSessionTimeout();
+
     const batteryLevel = await getBatteryLevel();
     const storageUsage = await getStorageUsage();
 
@@ -79,7 +150,8 @@ const performHeartbeat = async (): Promise<HeartbeatStatus> => {
  * Start heartbeat service - sends heartbeat every 30 seconds
  */
 export const startHeartbeatService = (
-  onLockChange?: (isLocked: boolean, reason?: string) => void
+  onLockChange?: (isLocked: boolean, reason?: string) => void,
+  onSessionExpired?: () => void
 ): void => {
   // Stop existing interval if any
   stopHeartbeatService();
@@ -87,6 +159,9 @@ export const startHeartbeatService = (
   // Set callback
   if (onLockChange) {
     onLockChangeCallback = onLockChange;
+  }
+  if (onSessionExpired) {
+    onSessionExpiredCallback = onSessionExpired;
   }
 
   // Send first heartbeat immediately
@@ -113,6 +188,8 @@ export const stopHeartbeatService = (): void => {
     heartbeatInterval = null;
     console.log('[HeartbeatService] Stopped');
   }
+
+  onSessionExpiredCallback = null;
 };
 
 /**

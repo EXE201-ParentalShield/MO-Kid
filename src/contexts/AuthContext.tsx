@@ -30,6 +30,7 @@ interface AuthContextType {
   isLoading: boolean;
   isLocked: boolean;
   hasDevice: boolean;
+  sessionExpiredSignal: number;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshDeviceInfo: () => Promise<void>;
@@ -43,6 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLocked, setIsLocked] = useState(false);
   const [hasDevice, setHasDevice] = useState(false);
+  const [sessionExpiredSignal, setSessionExpiredSignal] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -120,6 +122,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           startHeartbeatService((locked, reason) => {
             setIsLocked(locked);
             setDeviceInfo(prev => prev ? { ...prev, isLocked: locked, lockReason: reason } : null);
+          }, () => {
+            setSessionExpiredSignal(Date.now());
           });
         } else {
           console.warn('[AuthContext] Device not found in backend - response:', response.data);
@@ -180,6 +184,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       startHeartbeatService((locked, reason) => {
         setIsLocked(locked);
         setDeviceInfo(prev => prev ? { ...prev, isLocked: locked, lockReason: reason } : null);
+      }, () => {
+        setSessionExpiredSignal(Date.now());
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -218,6 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         isLocked,
         hasDevice,
+        sessionExpiredSignal,
         login,
         logout,
         refreshDeviceInfo,
