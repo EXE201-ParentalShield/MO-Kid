@@ -12,6 +12,9 @@ export const handleApiError = (error: any): string => {
     // Translate common BE error messages to Vietnamese
     const translations: Record<string, string> = {
       'Invalid credentials': 'Tên đăng nhập hoặc mật khẩu không đúng',
+      'Invalid username or password': 'Tên đăng nhập hoặc mật khẩu không đúng',
+      'Invalid password': 'Mật khẩu không đúng',
+      'Invalid username': 'Tên đăng nhập không đúng',
       'Account not found': 'Không tìm thấy tài khoản',
       'Device not found': 'Không tìm thấy thiết bị',
       'Device is locked': 'Thiết bị đang bị khóa',
@@ -47,9 +50,11 @@ export const handleApiError = (error: any): string => {
 };
 
 export const logError = (error: any, context: string) => {
-  console.error(`[${context}]`, error);
-  if (error.response) {
-    console.error('Response data:', error.response.data);
-    console.error('Response status:', error.response.status);
+  if (!__DEV__) {
+    console.error(`[${context}]`, error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
   }
 };

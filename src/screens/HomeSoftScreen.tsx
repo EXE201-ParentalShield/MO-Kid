@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,12 +15,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS, STORAGE_KEYS } from '../utils/constants';
-import { endSession } from '../api/device';
+import { endSession, getDeviceStatus } from '../api/device';
 import { getMyRequests } from '../api/requests';
 import AppCard from '../components/AppCard';
 import SafeButton from '../components/SafeButton';
 import StatusBadge from '../components/StatusBadge';
 import UsageProgressBar from '../components/UsageProgressBar';
+import InAppNotificationBanner from '../components/InAppNotificationBanner';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -36,7 +37,9 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
   const [isEndingSession, setIsEndingSession] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [requestBadgeCount, setRequestBadgeCount] = useState(0);
+  const [inAppNotice, setInAppNotice] = useState<{ title: string; message?: string; tone: 'info' | 'success' | 'danger' } | null>(null);
   const isAutoEndingRef = React.useRef(false);
+  const requestStatusMapRef = useRef<Record<number, string>>({});
 
   const loadRequestBadgeCount = useCallback(async () => {
     try {
@@ -68,26 +71,106 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
     }
   }, []);
 
+  const pollRequestResponseNotifications = useCallback(async () => {
+    try {
+      const requests = await getMyRequests();
+      const nextStatusMap: Record<number, string> = {};
+
+      requests.forEach((request) => {
+        nextStatusMap[request.requestId] = request.status.toLowerCase();
+      });
+
+      const changedRequest = requests.find((request) => {
+        const previousStatus = requestStatusMapRef.current[request.requestId];
+        const currentStatus = request.status.toLowerCase();
+        const isResponded = currentStatus === 'approved' || currentStatus === 'rejected' || currentStatus === 'denied';
+        return !!previousStatus && previousStatus !== currentStatus && isResponded;
+      });
+
+      if (changedRequest) {
+        const normalizedStatus = changedRequest.status.toLowerCase();
+        const approved = normalizedStatus === 'approved';
+        setInAppNotice({
+          title: approved ? '✅ Phụ huynh đã duyệt yêu cầu' : '❌ Phụ huynh đã từ chối yêu cầu',
+          message: approved
+            ? `Bạn được dùng thêm ${changedRequest.approvedMinutes || changedRequest.requestedMinutes} phút.`
+            : (changedRequest.parentNote || 'Bạn có thể gửi lại yêu cầu khác.'),
+          tone: approved ? 'success' : 'danger',
+        });
+      }
+
+      requestStatusMapRef.current = nextStatusMap;
+    } catch {
+      // Ignore polling errors to avoid interrupting kid flow.
+    }
+  }, []);
+
   const loadSession = useCallback(async () => {
     try {
       const sessionIdStr = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_SESSION_ID);
       const startTimeStr = await AsyncStorage.getItem('sessionStartTime');
+      const approvedStr = await AsyncStorage.getItem('sessionApprovedMinutes');
+      const localRequestIdStr = await AsyncStorage.getItem('sessionRequestId');
+
+      let statusData: Awaited<ReturnType<typeof getDeviceStatus>> | null = null;
+      try {
+        statusData = await getDeviceStatus();
+      } catch {
+        statusData = null;
+      }
+
+      if (statusData?.hasActiveSession && statusData.activeSessionId) {
+        const sessionStart = statusData.activeSessionStartTime || new Date().toISOString();
+        const allowedMinutes = statusData.activeSessionAllowedMinutes ?? statusData.approvedMinutes ?? 0;
+        const remainingMinutes = Math.max(0, statusData.activeSessionRemainingMinutes ?? 0);
+        const elapsedFromServer = allowedMinutes > 0
+          ? Math.max(0, allowedMinutes - remainingMinutes)
+          : Math.max(0, Math.floor((Date.now() - new Date(sessionStart).getTime()) / 60000));
+
+        await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_SESSION_ID, String(statusData.activeSessionId));
+        await AsyncStorage.setItem('sessionStartTime', sessionStart);
+        await AsyncStorage.setItem('sessionApprovedMinutes', String(allowedMinutes));
+        if (typeof statusData.activeRequestId === 'number') {
+          await AsyncStorage.setItem('sessionRequestId', String(statusData.activeRequestId));
+        }
+
+        setSessionId(statusData.activeSessionId);
+        setSessionStartTime(new Date(sessionStart));
+        setApprovedMinutes(allowedMinutes);
+        setElapsedMinutes(elapsedFromServer);
+        setHasActiveSession(true);
+        return;
+      }
+
+      if (statusData && !statusData.hasActiveSession) {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
+        await AsyncStorage.removeItem('sessionStartTime');
+        await AsyncStorage.removeItem('sessionRequestId');
+        await AsyncStorage.removeItem('sessionApprovedMinutes');
+        setHasActiveSession(false);
+        setSessionId(null);
+        setSessionStartTime(null);
+        setApprovedMinutes(0);
+        setElapsedMinutes(0);
+        return;
+      }
 
       if (sessionIdStr && startTimeStr) {
+        const localApproved = approvedStr ? parseInt(approvedStr, 10) : 0;
+        const localStartTime = new Date(startTimeStr);
+        const localElapsed = Math.max(0, Math.floor((Date.now() - localStartTime.getTime()) / 60000));
+
         setSessionId(parseInt(sessionIdStr, 10));
-        setSessionStartTime(new Date(startTimeStr));
+        setSessionStartTime(localStartTime);
         setHasActiveSession(true);
-
-        const startTime = new Date(startTimeStr);
-        const elapsed = Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 60000));
-        setElapsedMinutes(elapsed);
-
-        const approvedStr = await AsyncStorage.getItem('sessionApprovedMinutes');
-        if (approvedStr) {
-          setApprovedMinutes(parseInt(approvedStr, 10));
-        }
+        setElapsedMinutes(localElapsed);
+        setApprovedMinutes(localApproved);
       } else {
         setHasActiveSession(false);
+        setSessionId(null);
+        setSessionStartTime(null);
+        setApprovedMinutes(0);
+        setElapsedMinutes(0);
       }
     } catch (error) {
       console.error('[HomeSoftScreen] Error loading session:', error);
@@ -100,7 +183,15 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
     useCallback(() => {
       loadSession();
       loadRequestBadgeCount();
-    }, [loadRequestBadgeCount, loadSession])
+      pollRequestResponseNotifications();
+
+      const intervalId = setInterval(() => {
+        loadRequestBadgeCount();
+        pollRequestResponseNotifications();
+      }, 7000);
+
+      return () => clearInterval(intervalId);
+    }, [loadRequestBadgeCount, loadSession, pollRequestResponseNotifications])
   );
 
   useEffect(() => {
@@ -231,14 +322,22 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
   ] as const;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.screen}>
+      <InAppNotificationBanner
+        visible={!!inAppNotice}
+        title={inAppNotice?.title || ''}
+        message={inAppNotice?.message}
+        tone={inAppNotice?.tone || 'info'}
+        onDismiss={() => setInAppNotice(null)}
+      />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <LinearGradient colors={[COLORS.backgroundGradientStart, COLORS.backgroundGradientEnd]} style={styles.hero}>
         <Text style={styles.heroEyebrow}>Kid Shield</Text>
-        <Text style={styles.heroTitle}>Hi there 👋</Text>
+        <Text style={styles.heroTitle}>Chào Bé 👋</Text>
         <Text style={styles.heroSubtitle}>
           {hasActiveSession
             ? 'Bạn đang có một phiên sử dụng an toàn đang chạy.'
-            : 'You’re safe here. Mọi thứ đã được chuẩn bị thật gọn gàng cho bạn.'}
+            : 'Mọi thứ đã được chuẩn bị thật gọn gàng cho con.'}
         </Text>
       </LinearGradient>
 
@@ -357,11 +456,15 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
         <Text style={styles.tipText}>You’re safe here. Hãy hỏi phụ huynh nếu có gì khiến bạn bối rối hoặc chưa chắc chắn.</Text>
         <Text style={styles.tipText}>Nghỉ mắt đều đặn và dùng thời gian online cho những điều vui vẻ, có ích nhé 🎉</Text>
       </AppCard>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

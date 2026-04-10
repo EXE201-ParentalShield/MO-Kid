@@ -51,6 +51,13 @@ export interface HeartbeatResponse {
     storageUsage: number;
     approvedRequestId?: number;
     approvedMinutes?: number;
+    hasActiveSession?: boolean;
+    activeSessionId?: number;
+    activeRequestId?: number;
+    activeSessionStartTime?: string;
+    activeSessionEndTime?: string;
+    activeSessionAllowedMinutes?: number;
+    activeSessionRemainingMinutes?: number;
   };
 }
 

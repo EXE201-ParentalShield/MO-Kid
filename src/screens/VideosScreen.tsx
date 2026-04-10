@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { COLORS } from '../utils/constants';
-import { getVideos, VideoItem } from '../api/videos';
+import { getVideos, normalizeYoutubeId, VideoItem } from '../api/videos';
 
 type VideosScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Videos'>;
@@ -13,6 +13,43 @@ const VideosScreen = ({ navigation }: VideosScreenProps) => {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [thumbnailAttemptIndex, setThumbnailAttemptIndex] = useState<Record<string, number>>({});
+
+  const getVideoStableKey = (video: VideoItem, index: number): string => {
+    return String(video.videoId || video.youtubeId || video.url || video.title || index);
+  };
+
+  const formatDurationLabel = (seconds?: number): string | null => {
+    const safeSeconds = Number(seconds || 0);
+    if (!Number.isFinite(safeSeconds) || safeSeconds <= 0) return null;
+    if (safeSeconds > 6 * 3600) return null;
+
+    const mins = Math.max(1, Math.round(safeSeconds / 60));
+    return `${mins} phút`;
+  };
+
+  const getThumbnailCandidates = (video: VideoItem): string[] => {
+    const candidates: string[] = [];
+
+    if (video.thumbnailUrl) {
+      candidates.push(video.thumbnailUrl.trim());
+    }
+
+    const youtubeId = normalizeYoutubeId(video.youtubeId || video.url || '');
+    if (youtubeId) {
+      candidates.push(`https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`);
+      candidates.push(`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`);
+      candidates.push(`https://i3.ytimg.com/vi/${youtubeId}/hqdefault.jpg`);
+      candidates.push(`https://i.ytimg.com/vi/${youtubeId}/mqdefault.jpg`);
+      candidates.push(`https://img.youtube.com/vi/${youtubeId}/0.jpg`);
+    }
+
+    // Final guaranteed fallback so cards never end up without an image.
+    candidates.push('https://placehold.co/320x180/e5e7eb/374151?text=Video');
+
+    const unique = Array.from(new Set(candidates.filter(Boolean)));
+    return unique.filter((url) => /^https?:\/\//i.test(url));
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +65,16 @@ const VideosScreen = ({ navigation }: VideosScreenProps) => {
     };
     load();
   }, []);
+
+  const openVideo = (video: VideoItem) => {
+    const playableId = normalizeYoutubeId(video.youtubeId || video.url || video.thumbnailUrl || '');
+    if (!playableId) {
+      Alert.alert('Video chưa sẵn sàng', 'Video này đang thiếu nguồn phát hợp lệ. Vui lòng cập nhật lại youtubeId hoặc URL video.');
+      return;
+    }
+
+    navigation.navigate('WatchVideo', { video: { ...video, youtubeId: playableId } });
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -49,30 +96,47 @@ const VideosScreen = ({ navigation }: VideosScreenProps) => {
             <Text style={styles.emptyText}>Chưa có video</Text>
           </View>
         ) : (
-          videos.map((video) => (
+          videos.map((video, index) => {
+            const stableKey = getVideoStableKey(video, index);
+            const candidates = getThumbnailCandidates(video);
+            const attempt = thumbnailAttemptIndex[stableKey] || 0;
+            const currentThumb = candidates[attempt];
+            const durationLabel = formatDurationLabel(video.durationSeconds);
+
+            return (
             <TouchableOpacity
-              key={video.videoId}
+              key={stableKey}
               style={styles.videoCard}
-              onPress={() => navigation.navigate('WatchVideo', { video })}
+              onPress={() => openVideo(video)}
             >
               <View style={styles.thumbnail}>
-                {video.thumbnailUrl ? (
-                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnailImage} />
-                ) : (
+                {!currentThumb ? (
                   <Text style={styles.thumbnailIcon}>🎬</Text>
+                ) : (
+                  <Image
+                    source={{ uri: currentThumb }}
+                    style={styles.thumbnailImage}
+                    onError={() => {
+                      setThumbnailAttemptIndex((prev) => ({
+                        ...prev,
+                        [stableKey]: (prev[stableKey] || 0) + 1,
+                      }));
+                    }}
+                  />
                 )}
               </View>
               <View style={styles.videoInfo}>
                 <Text style={styles.videoTitle}>{video.title}</Text>
                 {!!video.description && <Text style={styles.videoDesc} numberOfLines={2}>{video.description}</Text>}
-                {!!video.durationSeconds && (
+                {!!durationLabel && (
                   <Text style={styles.videoDuration}>
-                    ⏱️ {(Math.round((video.durationSeconds || 0) / 60))} phút
+                    ⏱️ {durationLabel}
                   </Text>
                 )}
               </View>
             </TouchableOpacity>
-          ))
+          );
+          })
         )}
       </View>
     </ScrollView>

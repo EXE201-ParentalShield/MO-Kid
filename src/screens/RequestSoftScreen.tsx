@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,10 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,13 +19,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, STORAGE_KEYS } from '../utils/constants';
 import { createAccessRequest, getMyRequests, AccessRequest } from '../api/requests';
-import { startSession } from '../api/device';
+import { startSession, getDeviceStatus } from '../api/device';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import AppCard from '../components/AppCard';
 import SafeButton from '../components/SafeButton';
 import StatusBadge from '../components/StatusBadge';
+import InAppNotificationBanner from '../components/InAppNotificationBanner';
 
 type RequestScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Request'>;
+
+type SessionSyncState = {
+  hasActiveSession: boolean;
+  activeRequestId: number | null;
+};
 
 const RequestSoftScreen = () => {
   const navigation = useNavigation<RequestScreenNavigationProp>();
@@ -38,7 +46,12 @@ const RequestSoftScreen = () => {
   const [sessionApprovedMinutes, setSessionApprovedMinutes] = useState(0);
   const [activeRequestId, setActiveRequestId] = useState<number | null>(null);
   const [completedRequestIds, setCompletedRequestIds] = useState<number[]>([]);
+  const [approvedRequestIdFromServer, setApprovedRequestIdFromServer] = useState<number | null>(null);
+  const [hasLoadedDeviceStatus, setHasLoadedDeviceStatus] = useState(false);
+  const [hasDeviceStatusError, setHasDeviceStatusError] = useState(false);
+  const [inAppNotice, setInAppNotice] = useState<{ title: string; message?: string; tone: 'info' | 'success' | 'danger' } | null>(null);
   const hasMarkedSeenRef = React.useRef(false);
+  const requestStatusMapRef = useRef<Record<number, string>>({});
 
   const markRequestsAsSeen = useCallback(async () => {
     if (hasMarkedSeenRef.current) return;
@@ -46,27 +59,90 @@ const RequestSoftScreen = () => {
     await AsyncStorage.setItem(STORAGE_KEYS.REQUEST_BADGE_LAST_SEEN_AT, new Date().toISOString());
   }, []);
 
-  const checkActiveSession = useCallback(async () => {
+  const checkActiveSession = useCallback(async (): Promise<SessionSyncState> => {
     try {
       const sessionId = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_SESSION_ID);
       const approvedMinutesStr = await AsyncStorage.getItem('sessionApprovedMinutes');
       const requestIdStr = await AsyncStorage.getItem('sessionRequestId');
 
-      if (sessionId) {
-        setHasActiveSession(true);
-        setSessionApprovedMinutes(approvedMinutesStr ? parseInt(approvedMinutesStr, 10) : 0);
-        setActiveRequestId(requestIdStr ? parseInt(requestIdStr, 10) : null);
-      } else {
-        setHasActiveSession(false);
-        setSessionApprovedMinutes(0);
-        setActiveRequestId(null);
-      }
-
       const completedIdsStr = await AsyncStorage.getItem(STORAGE_KEYS.COMPLETED_REQUEST_IDS);
       const completedIds = completedIdsStr ? JSON.parse(completedIdsStr) : [];
       setCompletedRequestIds(completedIds);
+
+      try {
+        const status = await getDeviceStatus();
+        const approvedId = typeof status.approvedRequestId === 'number' ? status.approvedRequestId : null;
+        setApprovedRequestIdFromServer(approvedId);
+
+        if (status.hasActiveSession && status.activeSessionId) {
+          const allowedMinutes = status.activeSessionAllowedMinutes ?? status.approvedMinutes ?? 0;
+          const syncedActiveRequestId = typeof status.activeRequestId === 'number' ? status.activeRequestId : null;
+          setHasActiveSession(true);
+          setSessionApprovedMinutes(allowedMinutes);
+          setActiveRequestId(syncedActiveRequestId);
+
+          await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_SESSION_ID, String(status.activeSessionId));
+          if (status.activeSessionStartTime) {
+            await AsyncStorage.setItem('sessionStartTime', status.activeSessionStartTime);
+          }
+          await AsyncStorage.setItem('sessionApprovedMinutes', String(allowedMinutes));
+          if (syncedActiveRequestId !== null) {
+            await AsyncStorage.setItem('sessionRequestId', String(syncedActiveRequestId));
+          }
+
+          return {
+            hasActiveSession: true,
+            activeRequestId: syncedActiveRequestId,
+          };
+        } else {
+          setHasActiveSession(false);
+          setSessionApprovedMinutes(0);
+          setActiveRequestId(null);
+
+          await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
+          await AsyncStorage.removeItem('sessionStartTime');
+          await AsyncStorage.removeItem('sessionRequestId');
+          await AsyncStorage.removeItem('sessionApprovedMinutes');
+
+          return {
+            hasActiveSession: false,
+            activeRequestId: null,
+          };
+        }
+
+        setHasDeviceStatusError(false);
+      } catch {
+        const fallbackActiveRequestId = requestIdStr ? parseInt(requestIdStr, 10) : null;
+
+        if (sessionId) {
+          setHasActiveSession(true);
+          setSessionApprovedMinutes(approvedMinutesStr ? parseInt(approvedMinutesStr, 10) : 0);
+          setActiveRequestId(fallbackActiveRequestId);
+        } else {
+          setHasActiveSession(false);
+          setSessionApprovedMinutes(0);
+          setActiveRequestId(null);
+        }
+
+        setApprovedRequestIdFromServer(null);
+        setHasDeviceStatusError(true);
+
+        return {
+          hasActiveSession: !!sessionId,
+          activeRequestId: sessionId ? fallbackActiveRequestId : null,
+        };
+      } finally {
+        setHasLoadedDeviceStatus(true);
+      }
     } catch (error) {
       console.error('[RequestSoftScreen] Error checking session:', error);
+      setHasDeviceStatusError(true);
+      setHasLoadedDeviceStatus(true);
+
+      return {
+        hasActiveSession: false,
+        activeRequestId: null,
+      };
     }
   }, []);
 
@@ -83,33 +159,57 @@ const RequestSoftScreen = () => {
     }
   }, []);
 
+  const pollRequestResponseNotifications = useCallback(async () => {
+    try {
+      const requestsData = await getMyRequests();
+      const nextStatusMap: Record<number, string> = {};
+
+      requestsData.forEach((request) => {
+        nextStatusMap[request.requestId] = request.status.toLowerCase();
+      });
+
+      const changedRequest = requestsData.find((request) => {
+        const previousStatus = requestStatusMapRef.current[request.requestId];
+        const currentStatus = request.status.toLowerCase();
+        const isResponded = currentStatus === 'approved' || currentStatus === 'rejected' || currentStatus === 'denied';
+        return !!previousStatus && previousStatus !== currentStatus && isResponded;
+      });
+
+      if (changedRequest) {
+        const approved = changedRequest.status.toLowerCase() === 'approved';
+        setInAppNotice({
+          title: approved ? '✅ Yêu cầu đã được duyệt' : '❌ Yêu cầu đã bị từ chối',
+          message: approved
+            ? `Bạn được dùng ${changedRequest.approvedMinutes || changedRequest.requestedMinutes} phút.`
+            : (changedRequest.parentNote || 'Bạn có thể gửi yêu cầu khác.'),
+          tone: approved ? 'success' : 'danger',
+        });
+      }
+
+      requestStatusMapRef.current = nextStatusMap;
+    } catch {
+      // Keep polling silent to avoid interrupting the request screen.
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       hasMarkedSeenRef.current = false;
 
       const loadData = async () => {
+        await markRequestsAsSeen();
         await checkActiveSession();
         await fetchRequests();
+        await pollRequestResponseNotifications();
       };
       loadData();
-    }, [checkActiveSession, fetchRequests])
-  );
 
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (requests.length === 0) return;
+      const intervalId = setInterval(() => {
+        pollRequestResponseNotifications();
+      }, 5000);
 
-      const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-      const distanceToBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
-      const isAtBottom = distanceToBottom <= 24;
-
-      if (isAtBottom) {
-        markRequestsAsSeen().catch((error) => {
-          console.error('[RequestSoftScreen] Error marking requests as seen:', error);
-        });
-      }
-    },
-    [markRequestsAsSeen, requests.length]
+      return () => clearInterval(intervalId);
+    }, [checkActiveSession, fetchRequests, markRequestsAsSeen, pollRequestResponseNotifications])
   );
 
   const onRefresh = async () => {
@@ -193,10 +293,59 @@ const RequestSoftScreen = () => {
     return `${diffDays} ngày trước`;
   };
 
+  const getIsRequestCompleted = useCallback(
+    (request: AccessRequest, isCurrentlyActive: boolean) => {
+      const isCompletedFromServerFlag = request.isCompleted === true;
+      if (isCompletedFromServerFlag) return true;
+
+      const isCompletedFromLocal = completedRequestIds.includes(request.requestId);
+      if (isCompletedFromLocal) return true;
+
+      const normalizedStatus = request.status.toLowerCase();
+      const isApproved = normalizedStatus === 'approved';
+
+      if (hasLoadedDeviceStatus && !hasDeviceStatusError && isApproved && !isCurrentlyActive) {
+        // If server points to another approved request, this one is no longer actionable.
+        // Do not auto-complete when approvedRequestId is null to avoid premature completion
+        // before backend status propagation is fully visible on this client.
+        if (approvedRequestIdFromServer !== null && approvedRequestIdFromServer !== request.requestId) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [approvedRequestIdFromServer, completedRequestIds, hasDeviceStatusError, hasLoadedDeviceStatus]
+  );
+
+  const actionableApprovedFallback = requests
+    .filter((request) => {
+      const normalizedStatus = request.status.toLowerCase();
+      const isCurrentlyActive = hasActiveSession && activeRequestId === request.requestId;
+      const isCompleted = getIsRequestCompleted(request, isCurrentlyActive);
+      return normalizedStatus === 'approved' && !isCompleted;
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.respondedAt || a.createdAt).getTime();
+      const bTime = new Date(b.respondedAt || b.createdAt).getTime();
+      return bTime - aTime;
+    })[0];
+
+  const actionableApprovedRequestId =
+    hasLoadedDeviceStatus && !hasDeviceStatusError && approvedRequestIdFromServer !== null
+      ? approvedRequestIdFromServer
+      : (actionableApprovedFallback?.requestId ?? null);
+
   const blockingRequest = requests.find((request) => {
     const normalizedStatus = request.status.toLowerCase();
-    const isCompleted = completedRequestIds.includes(request.requestId);
-    return !isCompleted && (normalizedStatus === 'pending' || normalizedStatus === 'approved');
+    const isCurrentlyActive = hasActiveSession && activeRequestId === request.requestId;
+    const isCompleted = getIsRequestCompleted(request, isCurrentlyActive);
+    const isActionableApproved =
+      normalizedStatus === 'approved' &&
+      actionableApprovedRequestId !== null &&
+      request.requestId === actionableApprovedRequestId;
+
+    return !isCompleted && (normalizedStatus === 'pending' || isActionableApproved);
   });
 
   const requestFormLocked = hasActiveSession || !!blockingRequest;
@@ -246,7 +395,32 @@ const RequestSoftScreen = () => {
                 { text: 'OK', onPress: () => navigation.navigate('Home') },
               ]);
             } catch (error: any) {
-              Alert.alert('Lỗi', error.message || 'Không thể bắt đầu phiên sử dụng');
+              const message = String(error?.message || 'Không thể bắt đầu phiên sử dụng');
+              const normalized = message.toLowerCase();
+
+              const isAlreadyActiveError =
+                normalized.includes('session is already active') ||
+                normalized.includes('already active on this device');
+              const isDuplicateOrUsedError =
+                normalized.includes('already been used') ||
+                normalized.includes('duplicate') ||
+                normalized.includes('unique constraint') ||
+                normalized.includes('already exists');
+
+              if (isAlreadyActiveError || isDuplicateOrUsedError) {
+                const syncedState = await checkActiveSession();
+                await fetchRequests();
+
+                if (syncedState.hasActiveSession) {
+                  Alert.alert('Phiên đã bắt đầu', 'Phiên sử dụng đang hoạt động và đã được đồng bộ lại trạng thái.', [
+                    { text: 'OK', onPress: () => navigation.navigate('Home') },
+                  ]);
+                } else {
+                  Alert.alert('Yêu cầu đã được sử dụng', 'Yêu cầu này đã được dùng hoặc đã xử lý trước đó. Vui lòng chọn yêu cầu khác hoặc tạo yêu cầu mới.');
+                }
+              } else {
+                Alert.alert('Lỗi', message);
+              }
             } finally {
               setStartingRequestId(null);
             }
@@ -257,13 +431,27 @@ const RequestSoftScreen = () => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
-      onScroll={handleScroll}
-      scrollEventThrottle={16}
-    >
+    <View style={styles.screen}>
+      <InAppNotificationBanner
+        visible={!!inAppNotice}
+        title={inAppNotice?.title || ''}
+        message={inAppNotice?.message}
+        tone={inAppNotice?.tone || 'info'}
+        onDismiss={() => setInAppNotice(null)}
+      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      >
       <LinearGradient colors={[COLORS.backgroundGradientStart, COLORS.backgroundGradientEnd]} style={styles.hero}>
         <Text style={styles.heroTitle}>Cần thêm thời gian? ⏰</Text>
         <Text style={styles.heroSubtitle}>Nói rõ lý do để phụ huynh dễ giúp bạn hơn nhé.</Text>
@@ -332,8 +520,15 @@ const RequestSoftScreen = () => {
         ) : (
           <View style={styles.timeline}>
             {requests.map((request) => {
-              const isCompleted = completedRequestIds.includes(request.requestId);
               const isCurrentlyActive = hasActiveSession && activeRequestId === request.requestId;
+              const isCompleted = getIsRequestCompleted(request, isCurrentlyActive);
+              const canStartThisRequest =
+                request.status.toLowerCase() === 'approved' &&
+                !!request.approvedMinutes &&
+                !hasActiveSession &&
+                !isCompleted &&
+                actionableApprovedRequestId !== null &&
+                request.requestId === actionableApprovedRequestId;
 
               return (
                 <View key={request.requestId} style={styles.timelineRow}>
@@ -354,10 +549,7 @@ const RequestSoftScreen = () => {
                     {request.parentNote ? <Text style={styles.requestMeta}>Ghi chú: {request.parentNote}</Text> : null}
                     <Text style={styles.requestTime}>{formatTime(request.createdAt)}</Text>
 
-                    {request.status.toLowerCase() === 'approved' &&
-                    request.approvedMinutes &&
-                    !hasActiveSession &&
-                    !isCompleted ? (
+                    {canStartThisRequest ? (
                       <SafeButton
                         label="Start Using"
                         icon="🎮"
@@ -378,11 +570,17 @@ const RequestSoftScreen = () => {
           </View>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
