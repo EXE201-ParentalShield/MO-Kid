@@ -59,22 +59,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAuth = async () => {
     try {
-      const token = await storage.getToken();
-      const userData = await storage.getUserData();
-      
-      if (token && userData) {
-        setUser(userData);
-        
-        // Check if we have device info stored
-        const deviceUniqueId = await storage.getDeviceUniqueId();
-        if (deviceUniqueId) {
-          // Device info available - set it from stored data
-          setHasDevice(true);
-          
-          // Try to refresh device status
-          await refreshDeviceInfo();
-        }
-      }
+      // Always start unauthenticated on fresh app launch.
+      stopHeartbeatService();
+      await storage.clearAll();
+      setUser(null);
+      setDeviceInfo(null);
+      setIsLocked(false);
+      setHasDevice(false);
     } catch (error) {
       console.error('Error checking auth:', error);
     } finally {
@@ -154,7 +145,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         childName: response.device.childName,
         deviceName: response.device.deviceName,
         deviceType: response.device.deviceType,
-        osVersion: 'Unknown', // Not in device response
+        osVersion: response.device.osVersion || 'Unknown',
         isLocked: response.device.isLocked,
         lockReason: response.device.lockReason,
       };

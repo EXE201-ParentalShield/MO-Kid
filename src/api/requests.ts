@@ -11,6 +11,7 @@ export interface AccessRequest {
   approvedMinutes?: number;
   reason?: string;
   status: string;
+  isCompleted?: boolean;
   parentNote?: string;
   createdAt: string;
   respondedAt?: string;

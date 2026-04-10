@@ -5,10 +5,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert,
   Image,
   TextInput,
+  ScrollView,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,7 +55,54 @@ const LoginScreen = () => {
     return usernameValid && passwordValid;
   };
 
+  const mapLoginError = (message: string) => {
+    const normalized = message.toLowerCase();
+
+    const isGenericCredentialError =
+      normalized.includes('invalid credentials') ||
+      normalized.includes('invalid username or password') ||
+      normalized.includes('tên đăng nhập hoặc mật khẩu không đúng');
+
+    if (normalized.includes('username') && normalized.includes('required')) {
+      setErrors((prev) => ({ ...prev, username: 'Tên đăng nhập không được để trống' }));
+      return;
+    }
+
+    if (normalized.includes('password') && normalized.includes('required')) {
+      setErrors((prev) => ({ ...prev, password: 'Mật khẩu không được để trống' }));
+      return;
+    }
+
+    if (normalized.includes('password') && (normalized.includes('invalid') || normalized.includes('incorrect') || normalized.includes('không đúng'))) {
+      setErrors((prev) => ({ ...prev, password: 'Mật khẩu không đúng' }));
+      return;
+    }
+
+    if (isGenericCredentialError) {
+      setErrors((prev) => ({
+        ...prev,
+        username: 'Tên đăng nhập hoặc mật khẩu không đúng',
+        password: 'Tên đăng nhập hoặc mật khẩu không đúng',
+      }));
+      return;
+    }
+
+    if (normalized.includes('username') && (normalized.includes('not found') || normalized.includes('không tồn tại'))) {
+      setErrors((prev) => ({ ...prev, username: 'Tên đăng nhập không đúng' }));
+      return;
+    }
+
+    if (normalized === 'invalid username') {
+      setErrors((prev) => ({ ...prev, username: 'Tên đăng nhập không đúng' }));
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, password: message || 'Đăng nhập thất bại. Vui lòng thử lại.' }));
+  };
+
   const handleLogin = async () => {
+    setErrors({ username: '', password: '' });
+
     if (!validateForm()) {
       return;
     }
@@ -62,9 +112,8 @@ const LoginScreen = () => {
       await login(username, password);
       Alert.alert('Thành công', 'Đăng nhập thành công!');
     } catch (error: any) {
-      // Show API error message
       const errorMessage = error.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
-      setErrors(prev => ({ ...prev, password: errorMessage }));
+      mapLoginError(errorMessage);
       setPassword('');
     } finally {
       setIsLoading(false);
@@ -79,8 +128,16 @@ const LoginScreen = () => {
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         style={styles.container}
       >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.logoWrapper}>
@@ -154,6 +211,8 @@ const LoginScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
+        </ScrollView>
+        </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -165,6 +224,9 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   content: {
     flex: 1,

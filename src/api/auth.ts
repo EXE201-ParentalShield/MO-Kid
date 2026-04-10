@@ -34,6 +34,7 @@ export interface DeviceLoginResponse {
     deviceUniqueId: string;
     deviceName: string;
     deviceType: string;
+    osVersion: string;
     status: string;
     isLocked: boolean;
     lockReason?: string;
