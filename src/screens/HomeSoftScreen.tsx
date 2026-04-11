@@ -224,7 +224,23 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
       await endSession(sessionId, actualUsed);
       await saveCompletedRequest();
       await clearSessionData();
-      Alert.alert('Hết giờ rồi ⏰', `Bạn đã dùng ${actualUsed} phút trong phiên này.`);
+      Alert.alert(
+        'Hết giờ rồi ⏰',
+        `Bạn đã dùng ${actualUsed} phút trong phiên này.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              console.log('[HomeSoftScreen] Auto-end alert OK pressed, resetting to Home');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Home' }],
+              });
+            },
+          },
+        ],
+        { cancelable: false }
+      );
     } catch (error) {
       console.error('[HomeSoftScreen] Error auto-ending session:', error);
     } finally {

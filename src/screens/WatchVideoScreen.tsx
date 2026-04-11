@@ -1,17 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Image,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { WebView } from 'react-native-webview';
+﻿import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+// @ts-ignore
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -28,87 +18,18 @@ type Props = {
 
 const WatchVideoScreen = ({ route, navigation }: Props) => {
   const { video } = route.params;
-  const embedId = normalizeYoutubeId(video.youtubeId || video.url || video.thumbnailUrl || '');
-
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isWatching, setIsWatching] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
-  const [isPlayerLoading, setIsPlayerLoading] = useState(false);
-  const [isPlayerReady, setIsPlayerReady] = useState(false);
-  const [playerErrorCode, setPlayerErrorCode] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const playerRef = useRef<any>(null);
+
+  const embedId = normalizeYoutubeId(video.youtubeId || video.url || '');
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const thumbnailUrl = embedId
-    ? `https://i.ytimg.com/vi/${embedId}/hqdefault.jpg`
+    ? `https://img.youtube.com/vi/${embedId}/maxresdefault.jpg`
     : null;
-
-  const playerUrl = useMemo(() => {
-    if (!embedId) return '';
-
-    const params = [
-      'autoplay=1',
-      'controls=1',
-      'modestbranding=1',
-      'rel=0',
-      'playsinline=1',
-      'iv_load_policy=3',
-      'cc_load_policy=0',
-      'fs=1',
-      'disablekb=1',
-      'enablejsapi=1',
-    ].join('&');
-
-    return `https://www.youtube.com/embed/${embedId}?${params}`;
-  }, [embedId]);
-
-  const injectedHideUiScript = `
-    (function() {
-      const hide = function() {
-        const selectors = [
-          '.ytp-chrome-top',
-          '.ytp-show-cards-title',
-          '.ytp-watermark',
-          '.ytp-impression-link',
-          '.ytp-youtube-button',
-          '.ytp-endscreen-content',
-          '.ytp-ce-element',
-          '.branding-img-container'
-        ];
-
-        selectors.forEach(function(selector) {
-          document.querySelectorAll(selector).forEach(function(el) {
-            el.style.display = 'none';
-            el.style.opacity = '0';
-            el.style.visibility = 'hidden';
-          });
-        });
-      };
-
-      hide();
-      setInterval(hide, 500);
-
-      const detectError = function() {
-        const errorHost = document.querySelector('.ytp-error');
-        if (!errorHost) return;
-
-        const text = (errorHost.innerText || '').trim();
-        const codeMatch = text.match(/(101|102|105|150|151|152|153)/);
-        const code = codeMatch ? codeMatch[1] : 'UNKNOWN';
-
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'YT_PLAYER_ERROR',
-            code: code,
-            message: text
-          }));
-        }
-      };
-
-      setInterval(detectError, 700);
-      true;
-    })();
-  `;
 
   useEffect(() => {
     return () => {
@@ -130,6 +51,11 @@ const WatchVideoScreen = ({ route, navigation }: Props) => {
     setIsWatching(false);
   };
 
+  const handleThumbnailPress = () => {
+    setShowPlayer(true);
+    setIsPlaying(true);
+  };
+
   const handleComplete = async () => {
     stopWatching();
     try {
@@ -140,54 +66,6 @@ const WatchVideoScreen = ({ route, navigation }: Props) => {
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể ghi log xem video');
     }
-  };
-
-  const handlePlayPress = () => {
-    if (!embedId) return;
-
-    setPlayerErrorCode(null);
-    setShowPlayer(true);
-    setIsPlayerLoading(true);
-    setIsPlayerReady(false);
-    startWatching();
-  };
-
-  const handlePlayerLoaded = () => {
-    setIsPlayerLoading(false);
-    setIsPlayerReady(true);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 280,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const openInYoutubeApp = async () => {
-    if (!embedId) return;
-    const youtubeUrl = `https://www.youtube.com/watch?v=${embedId}`;
-
-    try {
-      await Linking.openURL(youtubeUrl);
-    } catch {
-      Alert.alert('Lỗi', 'Không thể mở YouTube ở thời điểm này.');
-    }
-  };
-
-  const handleEmbedError = (errorCode?: string) => {
-    const code = String(errorCode || '').trim() || 'UNKNOWN';
-    setPlayerErrorCode(code);
-    setIsPlayerLoading(false);
-    setIsPlayerReady(false);
-    stopWatching();
-
-    Alert.alert(
-      'Video không hỗ trợ nhúng',
-      `Video này đang chặn phát nhúng (mã ${code}). Bạn có muốn mở trực tiếp trên YouTube không?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Mở YouTube', onPress: openInYoutubeApp },
-      ]
-    );
   };
 
   return (
@@ -201,7 +79,7 @@ const WatchVideoScreen = ({ route, navigation }: Props) => {
         {!!embedId && (
           <View style={styles.playerContainer}>
             {!showPlayer ? (
-              <TouchableOpacity style={styles.thumbnailWrapper} activeOpacity={0.92} onPress={handlePlayPress}>
+              <TouchableOpacity style={styles.thumbnailWrapper} onPress={handleThumbnailPress} activeOpacity={0.85}>
                 {thumbnailUrl && (
                   <Image
                     source={{ uri: thumbnailUrl }}
@@ -218,60 +96,46 @@ const WatchVideoScreen = ({ route, navigation }: Props) => {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <Animated.View style={[styles.webviewWrap, { opacity: fadeAnim }]}> 
-                <WebView
-                  source={{ uri: playerUrl }}
-                  style={styles.webview}
-                  javaScriptEnabled
-                  domStorageEnabled
-                  allowsInlineMediaPlayback
-                  mediaPlaybackRequiresUserAction={false}
-                  allowsFullscreenVideo
-                  userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-                  injectedJavaScript={injectedHideUiScript}
-                  onLoadEnd={handlePlayerLoaded}
-                  onMessage={(event) => {
-                    try {
-                      const payload = JSON.parse(event.nativeEvent.data || '{}');
-                      if (payload?.type === 'YT_PLAYER_ERROR') {
-                        handleEmbedError(payload?.code);
+              <YoutubePlayer
+                ref={playerRef}
+                height={220}
+                play={isPlaying}
+                videoId={embedId}
+                initialPlayerParams={{
+                  controls: true,
+                  modestbranding: true,
+                  fs: 1,
+                }}
+                webViewProps={{
+                  injectedJavaScript: `
+                    setTimeout(function() {
+                      var video = document.querySelector('video');
+                      if (video) {
+                        video.requestFullscreen?.() ||
+                        video.webkitRequestFullscreen?.() ||
+                        video.mozRequestFullScreen?.();
                       }
-                    } catch {
-                      // Ignore malformed bridge payload.
-                    }
-                  }}
-                  onError={() => handleEmbedError('WEBVIEW')}
-                  onHttpError={() => handleEmbedError('HTTP')}
-                />
-              </Animated.View>
+                    }, 800);
+                    true;
+                  `,
+                  allowsFullscreenVideo: true,
+                  allowsInlineMediaPlayback: false,
+                  mediaPlaybackRequiresUserAction: false,
+                }}
+                onChangeState={(state: 'playing' | 'paused' | 'ended' | 'buffering' | 'unstarted' | 'ready') => {
+                  if (state === 'playing') {
+                    setIsPlaying(true);
+                    startWatching();
+                  } else if (state === 'paused') {
+                    setIsPlaying(false);
+                    stopWatching();
+                  } else if (state === 'ended') {
+                    setIsPlaying(false);
+                    stopWatching();
+                  }
+                }}
+              />
             )}
-
-            {showPlayer && (isPlayerLoading || !isPlayerReady) && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color="#ffffff" />
-              </View>
-            )}
-          </View>
-        )}
-
-        {!embedId && (
-          <View style={styles.invalidSourceCard}>
-            <Text style={styles.invalidSourceTitle}>Nguồn phát không hợp lệ</Text>
-            <Text style={styles.invalidSourceText}>
-              Video này chưa có youtubeId hoặc URL đúng định dạng nên chưa thể phát.
-            </Text>
-          </View>
-        )}
-
-        {!!playerErrorCode && (
-          <View style={styles.invalidSourceCard}>
-            <Text style={styles.invalidSourceTitle}>Video chặn phát nhúng (mã {playerErrorCode})</Text>
-            <Text style={styles.invalidSourceText}>
-              Một số video YouTube không cho app bên thứ ba phát trực tiếp. Bạn có thể mở video trên YouTube để xem.
-            </Text>
-            <TouchableOpacity style={styles.openYoutubeBtn} onPress={openInYoutubeApp}>
-              <Text style={styles.openYoutubeBtnText}>Mở trên YouTube</Text>
-            </TouchableOpacity>
           </View>
         )}
 
@@ -299,47 +163,11 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 12,
   },
-  invalidSourceCard: {
-    backgroundColor: '#fffbeb',
-    borderColor: '#f59e0b',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-  },
-  invalidSourceTitle: {
-    color: '#92400e',
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  invalidSourceText: {
-    color: '#78350f',
-    fontSize: 13,
-  },
-  openYoutubeBtn: {
-    marginTop: 10,
-    backgroundColor: '#ef4444',
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  openYoutubeBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-  },
   playerContainer: {
     height: 220,
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 12,
-    backgroundColor: '#000',
-  },
-  webviewWrap: {
-    flex: 1,
-  },
-  webview: {
-    flex: 1,
     backgroundColor: '#000',
   },
   thumbnailWrapper: {
@@ -355,12 +183,6 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.32)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   playButton: {
     width: 60,

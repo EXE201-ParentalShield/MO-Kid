@@ -20,9 +20,27 @@ export const storage = {
     }
   },
 
+  saveTokenLoginAt: async (timestamp: number) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_LOGIN_AT, timestamp.toString());
+    } catch (error) {
+      console.error('Error saving token login timestamp:', error);
+    }
+  },
+
+  getTokenLoginAt: async () => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.AUTH_LOGIN_AT);
+    } catch (error) {
+      console.error('Error getting token login timestamp:', error);
+      return null;
+    }
+  },
+
   removeToken: async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.TOKEN);
+      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_LOGIN_AT);
     } catch (error) {
       console.error('Error removing token:', error);
     }
@@ -70,6 +88,7 @@ export const storage = {
       await AsyncStorage.multiRemove([
         STORAGE_KEYS.TOKEN,
         STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.AUTH_LOGIN_AT,
         STORAGE_KEYS.DEVICE_ID,
         STORAGE_KEYS.DEVICE_UNIQUE_ID
       ]);

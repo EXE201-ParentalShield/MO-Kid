@@ -37,6 +37,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear stored auth data on 401
       await AsyncStorage.multiRemove([STORAGE_KEYS.TOKEN, STORAGE_KEYS.USER_DATA]);
+      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_LOGIN_AT);
     }
     return Promise.reject(error);
   }

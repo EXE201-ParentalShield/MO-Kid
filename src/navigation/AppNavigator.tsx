@@ -33,11 +33,39 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
+const resetToHomeSafely = (attempt = 0) => {
+  console.log('[SessionExpire] resetToHomeSafely called', { attempt, isReady: navigationRef.isReady() });
+
+  if (navigationRef.isReady()) {
+    console.log('[SessionExpire] navigation is ready, resetting to Home');
+    navigationRef.reset({
+      index: 0,
+      routes: [{ name: 'Home' }],
+    });
+    return;
+  }
+
+  if (attempt >= 5) {
+    console.warn('[SessionExpire] navigation reset aborted after max retries');
+    return;
+  }
+
+  console.log('[SessionExpire] navigation not ready, scheduling retry', { nextAttempt: attempt + 1 });
+  setTimeout(() => resetToHomeSafely(attempt + 1), 150);
+};
+
 export const AppNavigator = () => {
   const { isAuthenticated, isLoading, hasDevice, sessionExpiredSignal } = useAuth();
 
   React.useEffect(() => {
     if (!sessionExpiredSignal || !isAuthenticated || !hasDevice) return;
+
+    console.log('[SessionExpire] showing session expired alert', {
+      sessionExpiredSignal,
+      isAuthenticated,
+      hasDevice,
+      isNavReady: navigationRef.isReady(),
+    });
 
     Alert.alert(
       'Hết thời gian phiên ⏰',
@@ -46,11 +74,8 @@ export const AppNavigator = () => {
         {
           text: 'OK',
           onPress: () => {
-            if (!navigationRef.isReady()) return;
-            navigationRef.reset({
-              index: 0,
-              routes: [{ name: 'Home' }],
-            });
+            console.log('[SessionExpire] user pressed OK on session expired alert');
+            resetToHomeSafely();
           },
         },
       ],
