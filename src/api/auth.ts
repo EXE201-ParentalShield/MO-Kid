@@ -63,6 +63,7 @@ export const deviceLogin = async (username: string, password: string): Promise<D
     await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, response.data.device.deviceId.toString());
     await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_UNIQUE_ID, response.data.device.deviceUniqueId);
     await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.device));
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_LOGIN_AT, Date.now().toString());
 
     console.log('[Auth.deviceLogin] Login successful:', {
       deviceId: response.data.device.deviceId,
@@ -96,6 +97,7 @@ export const login = async (username: string, password: string): Promise<LoginRe
     // Save token and user data
     await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.data.token);
     await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_LOGIN_AT, Date.now().toString());
 
     console.log('[Auth.login] Login successful:', {
       userId: response.data.user.userId,
@@ -115,6 +117,7 @@ export const logout = async (): Promise<void> => {
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.TOKEN, 
       STORAGE_KEYS.USER_DATA, 
+      STORAGE_KEYS.AUTH_LOGIN_AT,
       STORAGE_KEYS.DEVICE_ID,
       STORAGE_KEYS.DEVICE_UNIQUE_ID
     ]);

@@ -37,6 +37,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_TTL_MS = 30 * 60 * 1000;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -59,13 +60,69 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const checkAuth = async () => {
     try {
-      // Always start unauthenticated on fresh app launch.
       stopHeartbeatService();
-      await storage.clearAll();
-      setUser(null);
-      setDeviceInfo(null);
-      setIsLocked(false);
-      setHasDevice(false);
+
+      const [token, storedData, loginAtRaw, deviceUniqueId] = await Promise.all([
+        storage.getToken(),
+        storage.getUserData(),
+        storage.getTokenLoginAt(),
+        storage.getDeviceUniqueId(),
+      ]);
+
+      if (!token || !storedData || !loginAtRaw || !deviceUniqueId) {
+        await storage.clearAll();
+        setUser(null);
+        setDeviceInfo(null);
+        setIsLocked(false);
+        setHasDevice(false);
+        return;
+      }
+
+      const loginAt = Number(loginAtRaw);
+      const isLoginAtValid = Number.isFinite(loginAt) && loginAt > 0;
+      const isExpired = !isLoginAtValid || Date.now() - loginAt > AUTH_TTL_MS;
+
+      if (isExpired) {
+        await storage.clearAll();
+        setUser(null);
+        setDeviceInfo(null);
+        setIsLocked(false);
+        setHasDevice(false);
+        return;
+      }
+
+      const userData = {
+        userId: storedData.deviceId || storedData.userId || 0,
+        username: storedData.username || '',
+        fullName: storedData.childName || storedData.fullName || 'Child',
+        email: storedData.email || '',
+        phoneNumber: storedData.phoneNumber || '',
+        role: 'Child',
+      };
+
+      const restoredDeviceInfo: DeviceInfo = {
+        deviceId: storedData.deviceId,
+        childName: storedData.childName || 'Child',
+        deviceName: storedData.deviceName || 'Unknown Device',
+        deviceType: storedData.deviceType || 'Android',
+        osVersion: storedData.osVersion || 'Unknown',
+        isLocked: !!storedData.isLocked,
+        lockReason: storedData.lockReason,
+      };
+
+      setUser(userData);
+      setDeviceInfo(restoredDeviceInfo);
+      setIsLocked(restoredDeviceInfo.isLocked);
+      setHasDevice(true);
+
+      startHeartbeatService((locked, reason) => {
+        setIsLocked(locked);
+        setDeviceInfo(prev => prev ? { ...prev, isLocked: locked, lockReason: reason } : null);
+      }, () => {
+        setSessionExpiredSignal(Date.now());
+      });
+
+      refreshDeviceInfo();
     } catch (error) {
       console.error('Error checking auth:', error);
     } finally {
