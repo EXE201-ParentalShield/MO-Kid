@@ -1,0 +1,40 @@
+name: EAS Android Preview Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: eas-android-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_android_preview:
+    name: Build Android Preview (EAS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          token: ${{ secrets.EXPO_TOKEN }}
+          eas-version: latest
+
+      - name: Trigger EAS Android preview build
+        run: eas build --platform android --profile preview --non-interactive --no-wait
