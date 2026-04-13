@@ -11,17 +11,19 @@ class KioskModeModule : Module() {
     Name("KioskMode")
 
     Function("startLockTask") {
-      val activity = appContext.currentActivity ?: return@Function
+      val activity = appContext.currentActivity ?: return@Function null
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
         activity.startLockTask()
       }
+      null
     }
 
     Function("stopLockTask") {
-      val activity = appContext.currentActivity ?: return@Function
+      val activity = appContext.currentActivity ?: return@Function null
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
         activity.stopLockTask()
       }
+      null
     }
 
     Function("isLockTaskActive") {
