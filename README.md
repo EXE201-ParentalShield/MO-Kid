@@ -174,6 +174,25 @@ npm install -g eas-cli
 eas build --platform android
 ```
 
+## 🤖 Auto Build Khi Merge Vao Main
+
+Du an da co workflow tu dong build Android preview khi co commit moi vao nhanh `main`:
+- Workflow file: `.github/workflows/eas-android-preview.yml`
+- Trigger: push vao `main` (bao gom merge pull request)
+
+### Cau hinh bat buoc tren GitHub
+
+1. Vao `Repository Settings` -> `Secrets and variables` -> `Actions`.
+2. Tao secret moi:
+	- Name: `EXPO_TOKEN`
+	- Value: token lay tu Expo account (`expo.dev` -> Account Settings -> Access Tokens).
+
+### Kiem tra workflow
+
+- Merge hoac push commit vao `main`.
+- Vao tab `Actions` tren GitHub de xem job chay.
+- Sau khi workflow trigger thanh cong, build se xuat hien trong Expo `Builds`.
+
 ## 📝 Notes
 
 - App được tối ưu cho Android trước
