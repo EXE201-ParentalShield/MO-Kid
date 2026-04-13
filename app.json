@@ -30,9 +30,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "autolinking": {
-      "nativeModulesDir": "./modules"
-    },
     "extra": {
       "eas": {
         "projectId": "80a855c1-54ed-4b7c-96f8-407f16a8093e"
@@ -40,7 +37,8 @@
     },
     "plugins": [
       "expo-asset",
-      "./plugins/with-kiosk-mode"
+      "./plugins/with-kiosk-mode",
+      "expo-font"
     ],
     "owner": "thtun0709"
   }
