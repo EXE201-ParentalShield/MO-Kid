@@ -1,9 +1,9 @@
-import { requireNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 export type KioskModeNativeModule = {
-  startLockTask: () => void;
-  stopLockTask: () => void;
-  isLockTaskActive: () => boolean;
+  startLockTask: () => Promise<void>;
+  stopLockTask: () => Promise<void>;
+  isLockTaskActive: () => Promise<boolean>;
 };
 
-export default requireNativeModule<KioskModeNativeModule>('KioskMode');
+export default requireOptionalNativeModule<KioskModeNativeModule>('KioskMode');

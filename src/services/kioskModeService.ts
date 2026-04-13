@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import KioskModeModule, { KioskModeNativeModule } from '../../modules/kiosk-mode/src/KioskModeModule';
 
-const nativeKioskModule: KioskModeNativeModule | undefined = Platform.OS === 'android' ? KioskModeModule : undefined;
+const nativeKioskModule: KioskModeNativeModule | null | undefined = Platform.OS === 'android' ? KioskModeModule : undefined;
 
 const canUseNativeKiosk = Platform.OS === 'android' && !!nativeKioskModule;
 
