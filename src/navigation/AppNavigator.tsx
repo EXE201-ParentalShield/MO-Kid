@@ -1,8 +1,11 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../contexts/AuthContext';
+import { STORAGE_KEYS } from '../utils/constants';
+import { startKioskModeForSession, stopKioskModeAfterSession } from '../services/kioskModeService';
 
 // Import screens
 import SplashScreen from '../screens/SplashScreen';
@@ -56,6 +59,25 @@ const resetToHomeSafely = (attempt = 0) => {
 
 export const AppNavigator = () => {
   const { isAuthenticated, isLoading, hasDevice, sessionExpiredSignal } = useAuth();
+  const [hasActiveSession, setHasActiveSession] = React.useState(false);
+
+  const checkSessionActive = React.useCallback(async () => {
+    try {
+      const [sessionId, sessionStartTime, approvedMinutes] = await AsyncStorage.multiGet([
+        STORAGE_KEYS.CURRENT_SESSION_ID,
+        'sessionStartTime',
+        'sessionApprovedMinutes',
+      ]).then((results) => results.map((item) => item[1]));
+
+      const active = Boolean(sessionId && sessionStartTime && Number(approvedMinutes) > 0);
+      setHasActiveSession(active);
+      return active;
+    } catch (error) {
+      console.error('[SessionFreeze] checkSessionActive error', error);
+      setHasActiveSession(false);
+      return false;
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!sessionExpiredSignal || !isAuthenticated || !hasDevice) return;
@@ -83,13 +105,47 @@ export const AppNavigator = () => {
     );
   }, [hasDevice, isAuthenticated, sessionExpiredSignal]);
 
+  React.useEffect(() => {
+    let isMounted = true;
+    const updateSession = async () => {
+      const active = await checkSessionActive();
+      if (active) {
+        await startKioskModeForSession();
+      } else {
+        await stopKioskModeAfterSession();
+      }
+      if (isMounted) {
+        setHasActiveSession(active);
+      }
+    };
+
+    updateSession();
+    const intervalId = setInterval(updateSession, 5000);
+
+    const appStateListener = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'background') {
+        const activeSession = await checkSessionActive();
+        if (activeSession) {
+          console.log('[SessionFreeze] app moved to background while session active');
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      appStateListener.remove();
+    };
+  }, [checkSessionActive]);
+
   if (isLoading) {
     return null; // or a loading screen
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator
+    <View style={styles.container}>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator
         screenOptions={{
           headerStyle: {
             backgroundColor: '#4CAF93',
@@ -165,6 +221,35 @@ export const AppNavigator = () => {
           </>
         )}
       </Stack.Navigator>
-    </NavigationContainer>
+      </NavigationContainer>
+      {hasActiveSession && (
+        <View style={styles.freezeBanner} pointerEvents="none">
+          <Text style={styles.freezeText} numberOfLines={2}>
+            Phiên sử dụng đang chạy. Không thể thoát khỏi ứng dụng cho đến khi phiên kết thúc.
+          </Text>
+        </View>
+      )}
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  freezeBanner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(20, 83, 45, 0.95)',
+    zIndex: 999,
+  },
+  freezeText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+});

@@ -25,6 +25,7 @@ import AppCard from '../components/AppCard';
 import SafeButton from '../components/SafeButton';
 import StatusBadge from '../components/StatusBadge';
 import InAppNotificationBanner from '../components/InAppNotificationBanner';
+import { startKioskModeForSession } from '../services/kioskModeService';
 
 type RequestScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Request'>;
 
@@ -388,6 +389,9 @@ const RequestSoftScreen = () => {
               await AsyncStorage.setItem('sessionStartTime', sessionStartTime);
               await AsyncStorage.setItem('sessionRequestId', requestId.toString());
               await AsyncStorage.setItem('sessionApprovedMinutes', approvedFromSession.toString());
+
+              const kioskStarted = await startKioskModeForSession();
+              console.log('[SessionFlow] kiosk start result', { kioskStarted, requestId, sessionId });
 
               await checkActiveSession();
 
