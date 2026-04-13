@@ -1,21 +1,21 @@
 // Shield Family Kid App - Constants
 export const COLORS = {
-  primary: '#3DD68C',
-  primaryDark: '#2db574',
-  primaryLight: '#6ee0a7',
-  secondary: '#4C9AFF',
+  primary: '#4CAF93',
+  primaryDark: '#2F8F74',
+  primaryLight: '#DDF5EE',
+  secondary: '#BFE7F7',
   success: '#059669',
-  danger: '#dc2626',
+  danger: '#E57373',
   warning: '#f59e0b',
-  background: '#f0fdf9',
-  backgroundGradientStart: '#3DD68C',
-  backgroundGradientEnd: '#E8FFF5',
+  background: '#F7FCFA',
+  backgroundGradientStart: '#FFFFFF',
+  backgroundGradientEnd: '#EAF8F2',
   card: '#ffffff',
-  text: '#1e293b',
+  text: '#17322A',
   textSecondary: '#64748b',
-  border: '#d1fae5',
-  shadow: 'rgba(61, 214, 140, 0.2)',
-  glow: 'rgba(61, 214, 140, 0.3)',
+  border: '#D9EEE6',
+  shadow: 'rgba(23, 50, 42, 0.08)',
+  glow: 'rgba(76, 175, 147, 0.18)',
 };
 
 export const SCREEN_NAMES = {
@@ -39,4 +39,10 @@ export const API_ENDPOINTS = {
 export const STORAGE_KEYS = {
   TOKEN: '@shield_kid_token',
   USER_DATA: '@shield_kid_user',
+  AUTH_LOGIN_AT: '@shield_kid_auth_login_at',
+  DEVICE_ID: '@shield_kid_device_id',
+  DEVICE_UNIQUE_ID: '@shield_kid_device_unique_id',
+  CURRENT_SESSION_ID: '@shield_kid_current_session_id',
+  COMPLETED_REQUEST_IDS: '@shield_kid_completed_request_ids',
+  REQUEST_BADGE_LAST_SEEN_AT: '@shield_kid_request_badge_last_seen_at',
 };

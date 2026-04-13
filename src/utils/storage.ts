@@ -20,9 +20,27 @@ export const storage = {
     }
   },
 
+  saveTokenLoginAt: async (timestamp: number) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_LOGIN_AT, timestamp.toString());
+    } catch (error) {
+      console.error('Error saving token login timestamp:', error);
+    }
+  },
+
+  getTokenLoginAt: async () => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.AUTH_LOGIN_AT);
+    } catch (error) {
+      console.error('Error getting token login timestamp:', error);
+      return null;
+    }
+  },
+
   removeToken: async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.TOKEN);
+      await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_LOGIN_AT);
     } catch (error) {
       console.error('Error removing token:', error);
     }
@@ -47,9 +65,33 @@ export const storage = {
     }
   },
 
+  // Device Unique ID management
+  saveDeviceUniqueId: async (deviceUniqueId: string) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_UNIQUE_ID, deviceUniqueId);
+    } catch (error) {
+      console.error('Error saving device unique ID:', error);
+    }
+  },
+
+  getDeviceUniqueId: async () => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_UNIQUE_ID);
+    } catch (error) {
+      console.error('Error getting device unique ID:', error);
+      return null;
+    }
+  },
+
   clearAll: async () => {
     try {
-      await AsyncStorage.multiRemove([STORAGE_KEYS.TOKEN, STORAGE_KEYS.USER_DATA]);
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.TOKEN,
+        STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.AUTH_LOGIN_AT,
+        STORAGE_KEYS.DEVICE_ID,
+        STORAGE_KEYS.DEVICE_UNIQUE_ID
+      ]);
     } catch (error) {
       console.error('Error clearing storage:', error);
     }
