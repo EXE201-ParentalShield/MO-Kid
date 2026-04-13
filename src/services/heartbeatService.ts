@@ -8,6 +8,7 @@ import { sendHeartbeat, HeartbeatResponse } from '../api/device';
 import { logError } from '../api/errorHandler';
 import { endSession } from '../api/device';
 import { STORAGE_KEYS } from '../utils/constants';
+import { stopKioskModeAfterSession } from './kioskModeService';
 
 export interface HeartbeatStatus {
   isLocked: boolean;
@@ -76,6 +77,7 @@ const enforceSessionTimeout = async () => {
     await endSession(sessionId, approvedMinutes);
     await markCompletedRequest();
     await clearStoredSession();
+    await stopKioskModeAfterSession();
     if (onSessionExpiredCallback) {
       onSessionExpiredCallback();
     }

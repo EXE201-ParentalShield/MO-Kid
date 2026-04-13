@@ -30,13 +30,18 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "autolinking": {
+      "nativeModulesDir": "./modules"
+    },
     "extra": {
       "eas": {
-        "projectId": "shield-kid-app"
+        "projectId": "80a855c1-54ed-4b7c-96f8-407f16a8093e"
       }
     },
     "plugins": [
-      "expo-asset"
-    ]
+      "expo-asset",
+      "./plugins/with-kiosk-mode"
+    ],
+    "owner": "thtun0709"
   }
 }

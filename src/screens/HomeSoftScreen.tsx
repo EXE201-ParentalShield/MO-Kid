@@ -22,6 +22,7 @@ import SafeButton from '../components/SafeButton';
 import StatusBadge from '../components/StatusBadge';
 import UsageProgressBar from '../components/UsageProgressBar';
 import InAppNotificationBanner from '../components/InAppNotificationBanner';
+import { stopKioskModeAfterSession } from '../services/kioskModeService';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -299,6 +300,7 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
   };
 
   const clearSessionData = async () => {
+    await stopKioskModeAfterSession();
     await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION_ID);
     await AsyncStorage.removeItem('sessionStartTime');
     await AsyncStorage.removeItem('sessionRequestId');
