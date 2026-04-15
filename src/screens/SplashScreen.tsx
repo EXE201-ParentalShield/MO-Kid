@@ -29,7 +29,7 @@ const SplashScreen = ({ navigation }: SplashScreenProps) => {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.title}>Shield Family</Text>
+        <Text style={styles.title}>ParentalShield</Text>
         <Text style={styles.subtitle}>Dành cho Trẻ em</Text>
       </View>
       <Text style={styles.tagline}>An toàn khi trực tuyến</Text>
