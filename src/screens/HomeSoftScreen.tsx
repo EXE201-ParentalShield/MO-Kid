@@ -350,7 +350,7 @@ const HomeSoftScreen = ({ navigation }: HomeScreenProps) => {
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <LinearGradient colors={[COLORS.backgroundGradientStart, COLORS.backgroundGradientEnd]} style={styles.hero}>
-        <Text style={styles.heroEyebrow}>Kid Shield</Text>
+        <Text style={styles.heroEyebrow}>ParentalShield</Text>
         <Text style={styles.heroTitle}>Chào Bé 👋</Text>
         <Text style={styles.heroSubtitle}>
           {hasActiveSession
